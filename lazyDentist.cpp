@@ -18,9 +18,9 @@ struct threadArgs
 
 sem_t dentistReady;
 sem_t seatCountWriteAccess; // if 1, the number of seats in the waiting room
-														// can be incremented or decremented
+							// can be incremented or decremented
 sem_t patientReady; // the number of patients in the waiting room ready
-										// to be served
+					// to be served
 int numFreeSeats; // number of free seats in the waiting room
 
 void initialize()
@@ -31,7 +31,7 @@ void initialize()
 	numFreeSeats = 3; // waiting room starts with 3 seats
 }
 
-void* dentist()
+void* dentist(void* unused)
 {
 	while (true)
 	{
@@ -50,7 +50,7 @@ void* dentist()
 	}
 }
 
-void* patient()
+void* patient(void* unused)
 {
 	//threadArgs* number = (threadArgs*) args;
 	//int patientNum = number->num;
@@ -82,15 +82,21 @@ void* patient()
 					 << " no chairs available." << endl;
 			sem_post(&seatCountWriteAccess); // no longer need lock on seats
 		}
+
 	}
 }
 
 int main() 
 {
 	initialize();
-	pthread_t dentist;
-	pthread_create(&dentist, NULL, &dentist, NULL);
-	pthread_t patient0;
+	pthread_t dentist1;
+	pthread_create(&dentist1, NULL, &dentist, NULL);
+	pthread_t patient0, patient1, patient2, patient3, patient4;
 	pthread_create(&patient0, NULL, &patient, NULL);
+	pthread_create(&patient1, NULL, &patient, NULL);
+	//pthread_create(&patient2, NULL, &patient, NULL);
+	//pthread_create(&patient3, NULL, &patient, NULL);
+	//pthread_create(&patient4, NULL, &patient, NULL);
+	pthread_join(patient0, NULL);
 	return 0;
 }

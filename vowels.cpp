@@ -16,11 +16,18 @@
 #include <pthread.h>
 using namespace std;
 
+struct threadParam
+{
+	string directory;
+};
+
 int aCount;
 int eCount;
 int iCount;
 int oCount;
 int uCount;
+
+const int numThreads = 20;
 
 pthread_mutex_t aCountMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t eCountMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -31,18 +38,19 @@ pthread_mutex_t uCountMutex = PTHREAD_MUTEX_INITIALIZER;
 string getDirectory()
 {
 	string directory;
-	cout << "enter directory for file path: ";
+	cout << endl << "enter directory for file path: ";
 	cin >> directory;
+	cout << endl;
 	return directory;
 }
 
 // accepts a string specifying the absolute file path for a text file
 // updates the vowel count variables with the number of each vowel 
 // found in the specified file 
-void readFile(void* param)
+void* readFile(void* param)
 {
-	string *filePath = *static_cast<string*>(param); // cast param back to string
-	const char* file = (*filePath).c_str(); 
+	threadParam *filePath = (threadParam*)param; // cast param back to threadParam
+	const char* file = filePath->directory.c_str(); 
 	ifstream input(file); // open input file
 	if (!input) // check if input file opened successfully
 	{
@@ -52,7 +60,8 @@ void readFile(void* param)
 	char current;
 	while (input >> current) 
 	{
-		tolower(current); // ensure current character is lower case
+		current = tolower(current); // ensure current character is lower case
+		// cout << filePath->directory << " cur char: " << current << endl;
 		switch (current) // update counts if current character is a vowel
 		{
 			case 'a':
@@ -90,26 +99,29 @@ void readFile(void* param)
 // assumes files are named file1.txt, file2.txt... file20.txt
 void createThreads(string directory)
 {
-	string filePaths[20];
+	threadParam filePaths[numThreads];
 	// create absolute file paths for each of the 20 input files
-	for (int i = 0; i < 20; i++) 
+	for (int i = 0; i < numThreads; i++) 
 	{
 		string filePath;
-		// assumes file path is in linux
-		if (directory.back() != '/') directory += '/';
-		filePath = directory + "file" + (i + 1) + ".txt";
-		filePaths[i] = filePath;
-		cout << filePath << endl; // for testing purposes
+		filePath = directory + "file" + to_string(i + 1) + ".txt";
+		filePaths[i].directory = filePath;
 	}
 	// create a thread for each file path
-	pthread_t threads[20];
-	for (int i = 0; i < 20; i++)
+	pthread_t threads[numThreads];
+	for (int i = 0; i < numThreads; i++)
 	{
-		pthread_create(&threads[i], NULL, &readFile, (void*) filePaths[i]);
+		int result = pthread_create(&threads[i], NULL, &readFile, (void*) &filePaths[i]);
+		if (result != 0)
+		{
+			cout << "error creating thread " << filePaths[i].directory << endl;
+		}
 	}
 	// join threads
-	for (int i = 0, i < 20; i++)
+	for (int i = 0; i < numThreads; i++)
+	{
 		pthread_join(threads[i], NULL);
+	}
 }
 
 // prints the values of the vowel count variables
@@ -120,7 +132,7 @@ void printResults()
 	cout << "E: " << eCount << endl;
 	cout << "I: " << iCount << endl;
 	cout << "O: " << oCount << endl;
-	cout << "U: " << uCount << endl;
+	cout << "U: " << uCount << endl << endl;
 }
 
 int main() 
