@@ -86,17 +86,35 @@ void* patient(void* unused)
 	}
 }
 
+void createPatients(int numPatients)
+{
+	pthread_t *patients;
+	patients = new pthread_t[numPatients];
+	for (int i = 0; i < numPatients; i++)
+		pthread_create(&patients[i], NULL, &patient, NULL);
+}
+
+void getNumPatients(int &numPatients) {
+	cout << "Enter the number of patients: ";
+	cin >> numPatients;
+	cout << endl;
+	while (numPatients < 1 || numPatients > 5)
+	{
+		cout << "The number of patients must be between 1 and 5." << endl;
+		cout << "Enter the number of patients: ";
+		cin >> numPatients;
+		cout << endl;
+	}
+}
+
 int main() 
 {
 	initialize();
 	pthread_t dentist1;
+	int numPatients;
+	getNumPatients(numPatients);
 	pthread_create(&dentist1, NULL, &dentist, NULL);
-	pthread_t patient0, patient1, patient2, patient3, patient4;
-	pthread_create(&patient0, NULL, &patient, NULL);
-	pthread_create(&patient1, NULL, &patient, NULL);
-	//pthread_create(&patient2, NULL, &patient, NULL);
-	//pthread_create(&patient3, NULL, &patient, NULL);
-	//pthread_create(&patient4, NULL, &patient, NULL);
-	pthread_join(patient0, NULL);
+	createPatients(numPatients);
+	pthread_join(dentist1, NULL);
 	return 0;
 }
