@@ -46,7 +46,7 @@ lazyDentist.cpp:
 
 	Can be compiled in BASH using the following command:
 
-		g++ -std=c++11 lazyDentist.cpp -o lazy
+		g++ -std=c++11 lazyDentist.cpp -o lazy -pthread
 
 	Can be run using the following command:
 
