@@ -86,6 +86,8 @@ void* patient(void* unused)
 	}
 }
 
+// takes an int, the number of patients as a parameter
+// creates the specified number of patient threads
 void createPatients(int numPatients)
 {
 	pthread_t *patients;
@@ -94,6 +96,9 @@ void createPatients(int numPatients)
 		pthread_create(&patients[i], NULL, &patient, NULL);
 }
 
+// prompts the user for the desired number of patient threads
+// accepts a reference to an int as a parameter
+// stores the user input in the given reference
 void getNumPatients(int &numPatients) {
 	cout << "Enter the number of patients: ";
 	cin >> numPatients;
@@ -115,6 +120,7 @@ int main()
 	getNumPatients(numPatients);
 	pthread_create(&dentist1, NULL, &dentist, NULL);
 	createPatients(numPatients);
-	pthread_join(dentist1, NULL);
+	pthread_join(dentist1, NULL); // prevents the main thread from exiting and
+								  // cancelling the dentist and patient threads
 	return 0;
 }

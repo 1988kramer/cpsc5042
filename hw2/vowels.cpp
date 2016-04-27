@@ -35,6 +35,8 @@ pthread_mutex_t iCountMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t oCountMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t uCountMutex = PTHREAD_MUTEX_INITIALIZER;
 
+// prompts the user for the directory containing the 20 input files
+// returns a string specifying the absolute filepath for the directory
 string getDirectory()
 {
 	string directory;
@@ -61,7 +63,6 @@ void* readFile(void* param)
 	while (input >> current) 
 	{
 		current = tolower(current); // ensure current character is lower case
-		// cout << filePath->directory << " cur char: " << current << endl;
 		switch (current) // update counts if current character is a vowel
 		{
 			case 'a':
@@ -94,6 +95,7 @@ void* readFile(void* param)
 }
 
 // accepts a string specifying the directory of the 20 files to be read
+// string must specify the absolute filepath and end in a '/' character
 // creates a thread to read each of the 20 files in the directory specified
 // runs each thread to completion before exiting
 // assumes files are named file1.txt, file2.txt... file20.txt
