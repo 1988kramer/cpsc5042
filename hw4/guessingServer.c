@@ -20,14 +20,12 @@ void* serverThread(void* socket_fd)
     if (socket < 0)
         error("ERROR on accept");
     int n;
-    char buffer[256];
-    // bzero(buffer, 256);
-    memset(buffer, 0, 256);
-    // char* message = "Connection handler online!";
-    // write(socket, message, strlen(message));
-    n = read(socket, buffer, 255);
+    char name[256];
+    memset(name, 0, 256);
+    printf("Enter your name: ");
+    n = read(socket, name, 255);
     if (n < 0) error("Error reading from socket");
-    printf("Here is the message: %s\n",buffer);
+    printf("Your name is: %s\n",name);
     n = write(socket,"I got your message",18);
     if (n < 0) error("ERROR writing to socket");
     close(socket);
