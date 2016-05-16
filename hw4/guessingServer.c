@@ -21,12 +21,13 @@ void* serverThread(void* socket_fd)
         error("ERROR on accept");
     int n;
     char name[256];
-    memset(name, 0, 256);
-    printf("Enter your name: ");
+    bzero(name,256);
+    n = write(socket, "Enter your name: ", 17);
+    if (n < 0) error("ERROR writing to socket");
     n = read(socket, name, 255);
     if (n < 0) error("Error reading from socket");
-    printf("Your name is: %s\n",name);
-    n = write(socket,"I got your message",18);
+    printf("Player's name is: %s\n",name);
+    n = write(socket,"Name received",13);
     if (n < 0) error("ERROR writing to socket");
     close(socket);
     return 0;
