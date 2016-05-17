@@ -14,6 +14,11 @@ void error(const char *msg)
     exit(1);
 }
 
+void write()
+{
+
+}
+
 void* serverThread(void* socket_fd)
 {
     int socket = *(int*)socket_fd;
@@ -22,13 +27,16 @@ void* serverThread(void* socket_fd)
     int n;
     char name[256];
     bzero(name,256);
-    n = write(socket, "Enter your name: ", 17);
-    if (n < 0) error("ERROR writing to socket");
-    n = read(socket, name, 255);
-    if (n < 0) error("Error reading from socket");
+    if (write(socket, "Enter your name: ", 17); < 0) 
+    error("ERROR writing to socket");
+    if (read(socket, name, 255) < 0) 
+        error("Error reading from socket");
     printf("Player's name is: %s\n",name);
-    n = write(socket,"Name received",13);
-    if (n < 0) error("ERROR writing to socket");
+    int number = rand() % 10000;
+    if (write(socket,"Turn: 1\nEnter a guess: ",23) < 0) 
+        error("ERROR writing to socket");
+    if (read(socket, name, 255) < 0) 
+        error("Error reading from socket");
     close(socket);
     return 0;
 }
