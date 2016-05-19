@@ -56,17 +56,14 @@ int main(int argc, char *argv[])
     printf("%s", buffer);
     pthread_mutex_unlock(&printMutex);
 
-    bzero(buffer,256);
-    // read name from stdin
-    fgets(buffer,255,stdin);
+    string name;
+    cin >> name;
     // write name to socket
-    write(sockfd,buffer,strlen(buffer));
-    int32_t turn, tmpTurn;
-    // read turn number from socket
-    read(sockfd, &tmpTurn, sizeof(tmpTurn));
-    turn = ntohl(tmpTurn);
-    int32_t guess, tmpGuess;
-    while (turn > 0) 
+    write(sockfd, name.c_str(), strlen(name.c_str()));
+    int turn = 1;
+
+    int32_t guess, tmpGuess, diff, tmpDiff;
+    while (diff != 0) 
     {
         pthread_mutex_lock(&printMutex);
         cout << "Turn: " << turn << endl;
@@ -76,15 +73,14 @@ int main(int argc, char *argv[])
         cin >> guess;
         tmpGuess = htonl(guess);
         write(sockfd, &tmpGuess, sizeof(tmpGuess));
-        bzero(buffer, 256);
-        read(sockfd, buffer, 255);
+
+        read(sockfd, &tmpDiff, 255);
+        diff = ntohl(tmpDiff);
 
         pthread_mutex_lock(&printMutex);
-        printf("%s\n", buffer);
+        cout << "Result of guess: " << diff << endl;
         pthread_mutex_unlock(&printMutex);
-
-        read(sockfd, &tmpTurn, sizeof(tmpTurn));
-        turn = ntohl(tmpTurn);
+        turn++;
     }
     close(sockfd);
     return 0;

@@ -8,10 +8,22 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
+struct Player
+{
+    string name;
+    int turns;
+};
+
 pthread_mutex_t printMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t leaderBoardMutex = PTHREAD_MUTEX_INITIALIZER;
+
+const int MAX_BUF_LENGTH = 255;
+const int LEADER_BOARD_SIZE = 3;
+Player leaderBoard[LEADER_BOARD_SIZE];
 
 void error(const char *msg)
 {
@@ -19,71 +31,94 @@ void error(const char *msg)
     exit(1);
 }
 
+int32_t calculateDiff(int target, int guess)
+{
+    int32_t ones = abs((target % 10) - (guess % 10));
+    int32_t tens = abs(((target % 100) / 10) - ((guess % 100) / 10));
+    int32_t hundreds = abs(((target % 1000) / 100) - ((guess % 1000) / 100));
+    int32_t thousands = abs((target / 1000) - (guess / 1000));
+    int32_t result = ones + (10 * tens) + (100 * hundreds) + (1000 * thousands);
+    return result;
+}
 
+void addToLeaderBoard(Player player)
+{
+    int i = 0;
+    pthread_mutex_lock(&leaderBoardMutex);
+
+    // segfaults here
+    // tries to read entries that are not initialized
+    while (player.turns > leaderBoard[i].turns && i < LEADER_BOARD_SIZE)
+    {
+        i++;
+    }
+    leaderBoard[i] = player;
+    pthread_mutex_unlock(&leaderBoardMutex);
+
+    for (int i = 0; i < LEADER_BOARD_SIZE; i++)
+    {
+        cout << leaderBoard[i].name << " " << leaderBoard[i].turns << endl;
+    }
+}
 
 void* serverThread(void* socket_fd)
 {
     int socket = *(int*)socket_fd;
     if (socket < 0)
         error("ERROR on accept");
-    int n;
-    char name[256];
-    bzero(name,256);
+    string name;
     write(socket, "Enter your name: ", 17);
-    read(socket, name, 255);
-
-    pthread_mutex_lock(&printMutex);
-    printf("Player's name is: %s\n",name);
-    pthread_mutex_unlock(&printMutex);
-
-    int number = rand() % 10000;
-
-    pthread_mutex_lock(&printMutex);
-    cout << "Target number is " << number << endl;
-    pthread_mutex_unlock(&printMutex);
-
-    int32_t tmp, guess;
-    int32_t turn, tmpTurn;
-    turn = 1;
-    /*
-    tmpTurn = htonl(turn);
-    write(socket, &tmpTurn, sizeof(tmpTurn));
-    read(socket, &tmp, sizeof(tmp));
-    guess = ntohl(tmp);
-    
-    pthread_mutex_lock(&printMutex);
-    cout << "Guess was " << guess << endl;
-    pthread_mutex_unlock(&printMutex);
-    */
-
-    while (guess != number)
+    vector<char> buffer(MAX_BUF_LENGTH);
+    int bytesRecv = 0;
+    do
     {
+        bytesRecv = read(socket, buffer.data(), MAX_BUF_LENGTH - 1);
+        name.append(buffer.cbegin(), buffer.cend());
+
+    } while (bytesRecv == MAX_BUF_LENGTH);
+
+    pthread_mutex_lock(&printMutex);
+    cout << "The player's name is: " << name << endl; 
+    pthread_mutex_unlock(&printMutex);
+
+    int target = rand() % 10000;
+
+    pthread_mutex_lock(&printMutex);
+    cout << "Target number is " << target << endl;
+    pthread_mutex_unlock(&printMutex);
+
+    int32_t guess, tmpGuess;
+    int32_t diff, tmpDiff;
+    int turns = 0;
+    diff = 1;
+
+    while (diff != 0)
+    {
+        read(socket, &tmpGuess, sizeof(tmpGuess));
+        guess = ntohl(tmpGuess);
+
         pthread_mutex_lock(&printMutex);
         cout << name << " guessed " << guess << endl;
         pthread_mutex_unlock(&printMutex);
 
-        tmpTurn = htonl(turn);
-        write(socket, &tmpTurn, sizeof(tmpTurn));
-        if (guess < number) 
-        {
-            write(socket,"Your guess was too low!", 23);
-        }
-        else
-        {
-            write(socket,"Your guess was too high!", 24);
-        }
-        read(socket, &tmp, sizeof(tmp));
-        guess = ntohl(tmp);
-        turn++;
+        diff = calculateDiff(target, guess);
+
+        tmpDiff = htonl(diff);
+        cout << "writing diff" << endl;
+        write(socket, &tmpDiff, sizeof(tmpDiff));
+        cout << "diff written" << endl;
+        turns++;
     }
-    turn = -1;
-    tmpTurn = htonl(turn);
-    write(socket, &tmpTurn, sizeof(tmpTurn));
-    write(socket, "You guessed correctly!\nGoodbye!", 31);
 
     pthread_mutex_lock(&printMutex);
     cout << name << " guessed correctly!" << endl;
     pthread_mutex_unlock(&printMutex);
+
+    Player thisPlayer;
+    thisPlayer.name = name;
+    thisPlayer.turns = turns;
+
+    addToLeaderBoard(thisPlayer);
 
     close(socket);
     return 0;
@@ -91,6 +126,10 @@ void* serverThread(void* socket_fd)
 
 int main(int argc, char *argv[])
 {
+    for(int i = i; i < LEADER_BOARD_SIZE; i++)
+        cout << leaderBoard[i].turns << ", ";
+    cout << endl;
+
      int sockfd, newsockfd, portno;
      socklen_t clilen;
      // char buffer[256];
