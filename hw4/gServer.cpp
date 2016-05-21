@@ -74,11 +74,6 @@ void addToLeaderBoard(Player player)
             leaderCount++;
     }
     pthread_mutex_unlock(&leaderBoardMutex);
-
-    for (int i = 0; i < LEADER_BOARD_SIZE; i++)
-    {
-        cout << leaderBoard[i].name << " " << leaderBoard[i].turns << endl;
-    }
 }
 
 void* serverThread(void* socket_fd)
@@ -133,9 +128,10 @@ void* serverThread(void* socket_fd)
     pthread_mutex_unlock(&printMutex);
 
     string victoryMessage = "Congratulations! It took ";
-    victoryMessage += turns;
-    victoryMessage += " to guess the number!";
+    victoryMessage += to_string(turns);
+    victoryMessage += " turns to guess the number!";
     write(socket, victoryMessage.c_str(), strlen(victoryMessage.c_str()));
+    cout << victoryMessage << endl;
 
     Player thisPlayer;
     thisPlayer.name = name;
@@ -151,10 +147,14 @@ void* serverThread(void* socket_fd)
     int32_t tempTurns = 0;
     for (int i = 0; i < leaderCount; i++)
     {
-        write(socket, leaderBoard[i].name.c_str(), 
-                strlen(leaderBoard[i].name.c_str()));
-        tempTurns = htonl(leaderBoard[i].turns);
-        write(socket, &tempTurns, sizeof(tempTurns));
+        string leader = "";
+        leader += to_string(i + 1);
+        leader += ". ";
+        leader += leaderBoard[i].name; 
+        leader += " "; 
+        leader += to_string(leaderBoard[i].turns);
+        cout << leader << endl;
+        write(socket, leader.c_str(), strlen(leader.c_str()));
     }
     pthread_mutex_unlock(&leaderBoardMutex);
 

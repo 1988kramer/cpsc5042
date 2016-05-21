@@ -79,8 +79,10 @@ int main(int argc, char *argv[])
         cin >> guess;
         while (guess < 0 || guess >= 10000) 
         {
+            pthread_mutex_lock(&printMutex);
             cout << "Invalid guess, make another " << endl;
             cout << "guess between 0 and 10,000: ";
+            pthread_mutex_unlock(&printMutex);
             cin >> guess;
         }
         tmpGuess = htonl(guess);
@@ -99,32 +101,34 @@ int main(int argc, char *argv[])
     bzero(buffer, 255);
     read(sockfd, &buffer, 255);
     string victoryMessage(buffer);
+
+    pthread_mutex_lock(&printMutex);
     cout << victoryMessage << endl;
     cout << endl;
+    pthread_mutex_unlock(&printMutex);
 
     int32_t leaders, tmpLeaders;
     read(sockfd, &tmpLeaders, sizeof(tmpLeaders));
     leaders = ntohl(tmpLeaders);
 
+    pthread_mutex_lock(&printMutex);
     cout << "Leader board:" << endl;
+    pthread_mutex_unlock(&printMutex);
 
     for (int i = 0; i < leaders; i++)
     {
-        string name = "";
-        vector<char> buffer(MAX_BUF_LENGTH);
+        string leader = "";
+        vector<char> buf(MAX_BUF_LENGTH);
         int bytesRecv = 0;
         do
         {
-            bytesRecv = read(sockfd, buffer.data(), MAX_BUF_LENGTH - 1);
-            name.append(buffer.cbegin(), buffer.cend());
+            bytesRecv = read(sockfd, buf.data(), buf.size());
+            leader.append(buf.cbegin(), buf.cend());
 
         } while (bytesRecv == MAX_BUF_LENGTH);
-
-
-        int32_t turns, tmpTurns;
-        read(sockfd, &tmpTurns, sizeof(tmpTurns));
-        turns = ntohl(tmpTurns);
-        cout << i + 1 << ". " << name << " " << turns << endl;
+        pthread_mutex_lock(&printMutex);
+        cout << leader << endl;
+        pthread_mutex_unlock(&printMutex);
     }
 
     close(sockfd);
