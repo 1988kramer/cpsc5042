@@ -7,15 +7,29 @@
 #include <netinet/in.h>
 #include <netdb.h> 
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
 pthread_mutex_t printMutex = PTHREAD_MUTEX_INITIALIZER;
+const int MAX_BUF_LENGTH = 255;
 
 void error(const char *msg)
 {
     perror(msg);
     exit(0);
+}
+
+string startGame()
+{
+    string name;
+    pthread_mutex_lock(&printMutex);
+    cout << "Welcome to Number Guessing Game!" << endl;
+    cout << "Enter your name: ";
+    cin >> name;
+    cout << endl;
+    pthread_mutex_unlock(&printMutex);
+    return name;
 }
 
 int main(int argc, char *argv[])
@@ -46,23 +60,15 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(portno);
     if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
         error("ERROR connecting");
-    // printf("Please enter the message: ");
-    bzero(buffer,256);
-    // read request for name from server
-    read(sockfd, buffer, 255);
-
-    // print request for name
-    pthread_mutex_lock(&printMutex);
-    printf("%s", buffer);
-    pthread_mutex_unlock(&printMutex);
-
-    string name;
-    cin >> name;
+    
+    // start game and get player's name
+    string name = startGame();
     // write name to socket
     write(sockfd, name.c_str(), strlen(name.c_str()));
+    
     int turn = 1;
-
     int32_t guess, tmpGuess, diff, tmpDiff;
+    diff = 1;
     while (diff != 0) 
     {
         pthread_mutex_lock(&printMutex);
@@ -71,17 +77,56 @@ int main(int argc, char *argv[])
         pthread_mutex_unlock(&printMutex);
 
         cin >> guess;
+        while (guess < 0 || guess >= 10000) 
+        {
+            cout << "Invalid guess, make another " << endl;
+            cout << "guess between 0 and 10,000: ";
+            cin >> guess;
+        }
         tmpGuess = htonl(guess);
         write(sockfd, &tmpGuess, sizeof(tmpGuess));
 
-        read(sockfd, &tmpDiff, 255);
+        read(sockfd, &tmpDiff, sizeof(tmpDiff));
         diff = ntohl(tmpDiff);
 
         pthread_mutex_lock(&printMutex);
         cout << "Result of guess: " << diff << endl;
+        cout << endl;
         pthread_mutex_unlock(&printMutex);
         turn++;
     }
+
+    bzero(buffer, 255);
+    read(sockfd, &buffer, 255);
+    string victoryMessage(buffer);
+    cout << victoryMessage << endl;
+    cout << endl;
+
+    int32_t leaders, tmpLeaders;
+    read(sockfd, &tmpLeaders, sizeof(tmpLeaders));
+    leaders = ntohl(tmpLeaders);
+
+    cout << "Leader board:" << endl;
+
+    for (int i = 0; i < leaders; i++)
+    {
+        string name = "";
+        vector<char> buffer(MAX_BUF_LENGTH);
+        int bytesRecv = 0;
+        do
+        {
+            bytesRecv = read(sockfd, buffer.data(), MAX_BUF_LENGTH - 1);
+            name.append(buffer.cbegin(), buffer.cend());
+
+        } while (bytesRecv == MAX_BUF_LENGTH);
+
+
+        int32_t turns, tmpTurns;
+        read(sockfd, &tmpTurns, sizeof(tmpTurns));
+        turns = ntohl(tmpTurns);
+        cout << i + 1 << ". " << name << " " << turns << endl;
+    }
+
     close(sockfd);
     return 0;
 }
