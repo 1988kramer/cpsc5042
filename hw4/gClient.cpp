@@ -26,7 +26,7 @@ string startGame()
     pthread_mutex_lock(&printMutex);
     cout << "Welcome to Number Guessing Game!" << endl;
     cout << "Enter your name: ";
-    cin >> name;
+    getline(cin, name);
     cout << endl;
     pthread_mutex_unlock(&printMutex);
     return name;
@@ -63,6 +63,9 @@ int main(int argc, char *argv[])
     
     // start game and get player's name
     string name = startGame();
+    int32_t nameLen = strlen(name.c_str());
+    nameLen = htonl(nameLen);
+    write(sockfd, &nameLen, sizeof(nameLen));
     // write name to socket
     write(sockfd, name.c_str(), strlen(name.c_str()));
     
@@ -98,38 +101,37 @@ int main(int argc, char *argv[])
         turn++;
     }
 
-    bzero(buffer, 255);
-    read(sockfd, &buffer, 255);
-    string victoryMessage(buffer);
+    int32_t messageLen;
+    read(sockfd, &messageLen, sizeof(messageLen));
+    messageLen = ntohl(messageLen);
+
+    char message[messageLen + 1];
+    bzero(message, messageLen + 1);
+    int bytesRead = read(sockfd, &message, messageLen);
+
+    string victoryMessage(message);
 
     pthread_mutex_lock(&printMutex);
     cout << victoryMessage << endl;
     cout << endl;
     pthread_mutex_unlock(&printMutex);
 
-    int32_t leaders, tmpLeaders;
-    read(sockfd, &tmpLeaders, sizeof(tmpLeaders));
-    leaders = ntohl(tmpLeaders);
+    /*
+    string leader = "";
+    vector<char> buf(MAX_BUF_LENGTH);
+    int bytesRecv = 0;
+    do
+    {
+        bytesRecv = read(sockfd, buf.data(), MAX_BUF_LENGTH - 1);
+        leader.append(buf.cbegin(), buf.cend());
+
+    } while (bytesRecv == MAX_BUF_LENGTH);
 
     pthread_mutex_lock(&printMutex);
-    cout << "Leader board:" << endl;
+    cout << leader << endl;
     pthread_mutex_unlock(&printMutex);
 
-    for (int i = 0; i < leaders; i++)
-    {
-        string leader = "";
-        vector<char> buf(MAX_BUF_LENGTH);
-        int bytesRecv = 0;
-        do
-        {
-            bytesRecv = read(sockfd, buf.data(), buf.size());
-            leader.append(buf.cbegin(), buf.cend());
-
-        } while (bytesRecv == MAX_BUF_LENGTH);
-        pthread_mutex_lock(&printMutex);
-        cout << leader << endl;
-        pthread_mutex_unlock(&printMutex);
-    }
+    */
 
     close(sockfd);
     return 0;

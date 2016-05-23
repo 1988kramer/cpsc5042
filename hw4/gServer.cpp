@@ -47,7 +47,7 @@ void initializeLeaderBoard()
     for (int i = 0; i < LEADER_BOARD_SIZE; i++)
     {
         Player dummyPlayer;
-        dummyPlayer.name = "Clarence";
+        dummyPlayer.name = "dummy";
         dummyPlayer.turns = 0;
         leaderBoard[i] = dummyPlayer;
     }
@@ -81,17 +81,18 @@ void* serverThread(void* socket_fd)
     int socket = *(int*)socket_fd;
     if (socket < 0)
         error("ERROR on accept");
-    string name = "";
-    vector<char> buffer(MAX_BUF_LENGTH);
-    int bytesRecv = 0;
-    do
-    {
-        bytesRecv = read(socket, buffer.data(), MAX_BUF_LENGTH - 1);
-        name.append(buffer.cbegin(), buffer.cend());
+    int32_t nameLen;
+    read(socket, &nameLen, sizeof(nameLen));
+    nameLen = ntohl(nameLen);
 
-    } while (bytesRecv == MAX_BUF_LENGTH);
+    char buffer[nameLen + 1];
+    bzero(buffer, nameLen + 1);
+    read(socket, &buffer, nameLen);
+    printf("%s\n", buffer);
+    string name(buffer);
 
     pthread_mutex_lock(&printMutex);
+    cout << "name length " << nameLen << endl;
     cout << "The player's name is: " << name << endl; 
     pthread_mutex_unlock(&printMutex);
 
@@ -129,9 +130,8 @@ void* serverThread(void* socket_fd)
 
     string victoryMessage = "Congratulations! It took ";
     victoryMessage += to_string(turns);
-    victoryMessage += " turns to guess the number!";
-    write(socket, victoryMessage.c_str(), strlen(victoryMessage.c_str()));
-    cout << victoryMessage << endl;
+    victoryMessage += " turns to guess the number!\n\n";
+    
 
     Player thisPlayer;
     thisPlayer.name = name;
@@ -140,24 +140,30 @@ void* serverThread(void* socket_fd)
 
     // prevent leader board from changing while sending to client
     pthread_mutex_lock(&leaderBoardMutex);
-    // send number of leaders to client
-    int32_t tmpLeaderCount = htonl(leaderCount);
-    write(socket, &tmpLeaderCount, sizeof(tmpLeaderCount));
-    // send leaders to client
-    int32_t tempTurns = 0;
+
+    victoryMessage += "Leader Board:\n";
     for (int i = 0; i < leaderCount; i++)
     {
-        string leader = "";
-        leader += to_string(i + 1);
-        leader += ". ";
-        leader += leaderBoard[i].name; 
-        leader += " "; 
-        leader += to_string(leaderBoard[i].turns);
-        cout << leader << endl;
-        write(socket, leader.c_str(), strlen(leader.c_str()));
+        victoryMessage += to_string(i + 1);
+        victoryMessage += ". ";
+        victoryMessage += leaderBoard[i].name; 
+        victoryMessage += " "; 
+        victoryMessage += to_string(leaderBoard[i].turns);
+        victoryMessage += "\n";
     }
     pthread_mutex_unlock(&leaderBoardMutex);
 
+    int32_t messageLen = strlen(victoryMessage.c_str());
+    messageLen = htonl(messageLen);
+    write(socket, &messageLen, sizeof(messageLen));
+
+    write(socket, victoryMessage.c_str(), strlen(victoryMessage.c_str()));
+    
+    pthread_mutex_lock(&printMutex);
+    cout << victoryMessage << endl;
+    pthread_mutex_unlock(&printMutex);
+    
+    pthread_exit(NULL);
     close(socket);
     return 0;
 }
@@ -170,7 +176,6 @@ int main(int argc, char *argv[])
 
     int sockfd, newsockfd, portno;
     socklen_t clilen;
-    // char buffer[256];
     struct sockaddr_in serv_addr, cli_addr;
 
     if (argc < 2) {
@@ -197,6 +202,7 @@ int main(int argc, char *argv[])
     {
         if (pthread_create(&thread_id, NULL, serverThread, (void*) &newsockfd) < 0)
             error("could not create thread");
+        pthread_detach(thread_id);
         printf("Thread created!\n");
     }
     close(sockfd);
