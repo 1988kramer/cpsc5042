@@ -1,3 +1,16 @@
+// Andrew Kramer
+// CPSC 5042
+// Homework 4
+// 5/23/2016
+
+// gClient.cpp
+
+// compile using g++ using the following command line:
+// g++ -std=c++11 gClient.cpp -o gClient
+
+// run using the following command line
+// ./gClient [hostname] [portno]
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,6 +33,8 @@ void error(const char *msg)
     exit(0);
 }
 
+// prints welcome message and requests players name
+// returns string containing player's name
 string startGame()
 {
     string name;
@@ -34,11 +49,12 @@ string startGame()
 
 int main(int argc, char *argv[])
 {
-    int sockfd, portno, n;
+    // socket initialization code
+    // basically stolen from the linux howto on socket programming
+    int sockfd, portno;
     struct sockaddr_in serv_addr;
     struct hostent *server;
 
-    char buffer[256];
     if (argc < 3) {
        fprintf(stderr,"usage %s hostname port\n", argv[0]);
        exit(0);
@@ -64,9 +80,12 @@ int main(int argc, char *argv[])
     // start game and get player's name
     string name = startGame();
     int32_t nameLen = strlen(name.c_str());
+
+    // write name length to server
     nameLen = htonl(nameLen);
     write(sockfd, &nameLen, sizeof(nameLen));
-    // write name to socket
+
+    // write name to server 
     write(sockfd, name.c_str(), strlen(name.c_str()));
     
     int turn = 1;
@@ -80,6 +99,7 @@ int main(int argc, char *argv[])
         pthread_mutex_unlock(&printMutex);
 
         cin >> guess;
+        // make sure guess is valid
         while (guess < 0 || guess >= 10000) 
         {
             pthread_mutex_lock(&printMutex);
@@ -88,12 +108,15 @@ int main(int argc, char *argv[])
             pthread_mutex_unlock(&printMutex);
             cin >> guess;
         }
+        // write guess to server
         tmpGuess = htonl(guess);
         write(sockfd, &tmpGuess, sizeof(tmpGuess));
 
+        // read result of guess from server
         read(sockfd, &tmpDiff, sizeof(tmpDiff));
         diff = ntohl(tmpDiff);
 
+        // print result of guess
         pthread_mutex_lock(&printMutex);
         cout << "Result of guess: " << diff << endl;
         cout << endl;
@@ -101,37 +124,23 @@ int main(int argc, char *argv[])
         turn++;
     }
 
+    // read victory message length from server
     int32_t messageLen;
     read(sockfd, &messageLen, sizeof(messageLen));
     messageLen = ntohl(messageLen);
 
-    char message[messageLen + 1];
-    bzero(message, messageLen + 1);
-    int bytesRead = read(sockfd, &message, messageLen);
+    // read victory message from server
+    vector<char> message;
+    message.reserve(messageLen + 1);
+    if (read(sockfd, &message[0], messageLen) < 0)
+        error("unable to read message");
+    string victoryMessage = "";
+    victoryMessage.append(&message[0], messageLen);
 
-    string victoryMessage(message);
-
+    // print victory message
     pthread_mutex_lock(&printMutex);
     cout << victoryMessage << endl;
-    cout << endl;
     pthread_mutex_unlock(&printMutex);
-
-    /*
-    string leader = "";
-    vector<char> buf(MAX_BUF_LENGTH);
-    int bytesRecv = 0;
-    do
-    {
-        bytesRecv = read(sockfd, buf.data(), MAX_BUF_LENGTH - 1);
-        leader.append(buf.cbegin(), buf.cend());
-
-    } while (bytesRecv == MAX_BUF_LENGTH);
-
-    pthread_mutex_lock(&printMutex);
-    cout << leader << endl;
-    pthread_mutex_unlock(&printMutex);
-
-    */
 
     close(sockfd);
     return 0;

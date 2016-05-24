@@ -1,3 +1,15 @@
+// Andrew Kramer
+// CPSC 5042
+// Homework 4
+// 5/23/2016
+
+// gServer.cpp
+
+// compile using g++ using the following command line:
+// g++ -std=c++11 gServer.cpp -o gServer -pthread
+
+// run using the following command line
+// ./gServer [portno]
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +20,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <iostream>
+#include <signal.h>
 #include <vector>
 
 using namespace std;
@@ -32,6 +45,12 @@ void error(const char *msg)
     exit(1);
 }
 
+void threadError(const char *msg)
+{
+    perror(msg);
+    pthread_exit(NULL);
+}
+
 int32_t calculateDiff(int target, int guess)
 {
     int32_t ones = abs((target % 10) - (guess % 10));
@@ -42,6 +61,9 @@ int32_t calculateDiff(int target, int guess)
     return result;
 }
 
+// initializes leader board to default dummy values
+// so the program doesn't segfault when it tries to access
+// the leaderboard for the first 3 times
 void initializeLeaderBoard() 
 {
     for (int i = 0; i < LEADER_BOARD_SIZE; i++)
@@ -53,20 +75,25 @@ void initializeLeaderBoard()
     }
 }
 
+// Preconditions: accepts a player struct as a parameter
+// Postconditions: adds the struct to the leaderboard in the appropriate
+// place if the player is in the top 3
 void addToLeaderBoard(Player player)
 {
     int i = 0;
+
     pthread_mutex_lock(&leaderBoardMutex);
+    // find the appropriate place for the given player
     while (leaderBoard[i].turns > 0 
             && player.turns >= leaderBoard[i].turns 
             && i < LEADER_BOARD_SIZE)
-    {
         i++;
-    }
+
+    // shuffle lower entries down the leader board if necessary
     for (int j = LEADER_BOARD_SIZE - 1; j > i; j--)
-    {
         leaderBoard[j] = leaderBoard[j - 1];
-    }
+
+    // insert player into leaderboard if necessary
     if (i < LEADER_BOARD_SIZE)
     {
         leaderBoard[i] = player;
@@ -76,72 +103,15 @@ void addToLeaderBoard(Player player)
     pthread_mutex_unlock(&leaderBoardMutex);
 }
 
-void* serverThread(void* socket_fd)
+string buildVictoryMessage(int turns)
 {
-    int socket = *(int*)socket_fd;
-    if (socket < 0)
-        error("ERROR on accept");
-    int32_t nameLen;
-    read(socket, &nameLen, sizeof(nameLen));
-    nameLen = ntohl(nameLen);
-
-    char buffer[nameLen + 1];
-    bzero(buffer, nameLen + 1);
-    read(socket, &buffer, nameLen);
-    printf("%s\n", buffer);
-    string name(buffer);
-
-    pthread_mutex_lock(&printMutex);
-    cout << "name length " << nameLen << endl;
-    cout << "The player's name is: " << name << endl; 
-    pthread_mutex_unlock(&printMutex);
-
-    int target = rand() % 10000;
-
-    pthread_mutex_lock(&printMutex);
-    cout << "Target number is " << target << endl;
-    pthread_mutex_unlock(&printMutex);
-
-    int32_t guess, tmpGuess;
-    int32_t diff, tmpDiff;
-    int turns = 0;
-    diff = 1;
-
-    while (diff != 0)
-    {
-        read(socket, &tmpGuess, sizeof(tmpGuess));
-        guess = ntohl(tmpGuess);
-
-        pthread_mutex_lock(&printMutex);
-        cout << name << " guessed " << guess << endl;
-        pthread_mutex_unlock(&printMutex);
-
-        diff = calculateDiff(target, guess);
-
-        tmpDiff = htonl(diff);
-        write(socket, &tmpDiff, sizeof(tmpDiff));
-        turns++;
-        cout << turns << endl;
-    }
-
-    pthread_mutex_lock(&printMutex);
-    cout << name << " guessed correctly!" << endl;
-    pthread_mutex_unlock(&printMutex);
-
     string victoryMessage = "Congratulations! It took ";
     victoryMessage += to_string(turns);
     victoryMessage += " turns to guess the number!\n\n";
-    
-
-    Player thisPlayer;
-    thisPlayer.name = name;
-    thisPlayer.turns = turns;
-    addToLeaderBoard(thisPlayer);
-
-    // prevent leader board from changing while sending to client
-    pthread_mutex_lock(&leaderBoardMutex);
-
     victoryMessage += "Leader Board:\n";
+
+    // prevent leader board from changing while building string
+    pthread_mutex_lock(&leaderBoardMutex);
     for (int i = 0; i < leaderCount; i++)
     {
         victoryMessage += to_string(i + 1);
@@ -152,12 +122,85 @@ void* serverThread(void* socket_fd)
         victoryMessage += "\n";
     }
     pthread_mutex_unlock(&leaderBoardMutex);
+    return victoryMessage;
+}
 
+void* serverThread(void* socket_fd)
+{
+    int socket = *(int*)socket_fd;
+    if (socket < 0)
+        threadError("ERROR on accept");
+
+    // read expected name length from client
+    int32_t nameLen;
+    if (read(socket, &nameLen, sizeof(nameLen)) < 0)
+        threadError("unable to read name length");
+    nameLen = ntohl(nameLen);
+
+    // read name from client
+    vector<char> buffer;
+    buffer.reserve(nameLen + 1);
+    if (read(socket, &buffer[0], nameLen) < 0)
+        threadError("unable to read name");
+    string name = "";
+    name.append(&buffer[0], nameLen);
+
+    pthread_mutex_lock(&printMutex);
+    cout << "name length " << nameLen << endl;
+    cout << "The player's name is: " << name << endl; 
+    pthread_mutex_unlock(&printMutex);
+
+    int target = rand() % 10000; // generate targer number
+
+    pthread_mutex_lock(&printMutex);
+    cout << "Target number for " << name << " is " << target << endl;
+    pthread_mutex_unlock(&printMutex);
+
+    int32_t guess, tmpGuess;
+    int32_t diff, tmpDiff;
+    int turns = 0;
+    diff = 1;
+
+    while (diff != 0)
+    {
+        // read guess from client
+        if (read(socket, &tmpGuess, sizeof(tmpGuess)) < 0)
+            threadError("unable to read guess");
+        guess = ntohl(tmpGuess);
+
+        pthread_mutex_lock(&printMutex);
+        cout << name << " guessed " << guess << endl;
+        pthread_mutex_unlock(&printMutex);
+
+        // send guess result to client
+        diff = calculateDiff(target, guess);
+        tmpDiff = htonl(diff);
+        if (write(socket, &tmpDiff, sizeof(tmpDiff)) < 0)
+            threadError("unable to write guess result");
+        turns++;
+    }
+
+    pthread_mutex_lock(&printMutex);
+    cout << name << " guessed correctly!" << endl;
+    pthread_mutex_unlock(&printMutex);
+
+    // create player struct to add to leader board
+    Player thisPlayer;
+    thisPlayer.name = name;
+    thisPlayer.turns = turns;
+    addToLeaderBoard(thisPlayer);
+
+    string victoryMessage = buildVictoryMessage(turns);
+
+    // send victory message length to client
     int32_t messageLen = strlen(victoryMessage.c_str());
     messageLen = htonl(messageLen);
-    write(socket, &messageLen, sizeof(messageLen));
+    if (write(socket, &messageLen, sizeof(messageLen)) < 0)
+        threadError("unable to write victory message length");
 
-    write(socket, victoryMessage.c_str(), strlen(victoryMessage.c_str()));
+    // send victory message to client
+    if (write(socket, victoryMessage.c_str(), strlen(victoryMessage.c_str())) < 0)
+        threadError("unable to write victory message");
     
     pthread_mutex_lock(&printMutex);
     cout << victoryMessage << endl;
@@ -172,7 +215,7 @@ int main(int argc, char *argv[])
 {
     initializeLeaderBoard();
 
-    cout << endl;
+    signal(SIGPIPE, SIG_IGN);
 
     int sockfd, newsockfd, portno;
     socklen_t clilen;
@@ -203,7 +246,6 @@ int main(int argc, char *argv[])
         if (pthread_create(&thread_id, NULL, serverThread, (void*) &newsockfd) < 0)
             error("could not create thread");
         pthread_detach(thread_id);
-        printf("Thread created!\n");
     }
     close(sockfd);
     return 0; 
