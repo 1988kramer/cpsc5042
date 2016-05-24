@@ -50,7 +50,7 @@ string startGame()
 int main(int argc, char *argv[])
 {
     // socket initialization code
-    // basically stolen from the linux howto on socket programming
+    // largely copied from the linux howto on socket programming
     int sockfd, portno;
     struct sockaddr_in serv_addr;
     struct hostent *server;
@@ -83,10 +83,12 @@ int main(int argc, char *argv[])
 
     // write name length to server
     nameLen = htonl(nameLen);
-    write(sockfd, &nameLen, sizeof(nameLen));
+    if (write(sockfd, &nameLen, sizeof(nameLen)) < 0)
+        error("failed to write name length to socket");
 
     // write name to server 
-    write(sockfd, name.c_str(), strlen(name.c_str()));
+    if (write(sockfd, name.c_str(), strlen(name.c_str())) < 0)
+        error("failed to write name to socket");
     
     int turn = 1;
     int32_t guess, tmpGuess, diff, tmpDiff;
@@ -110,10 +112,12 @@ int main(int argc, char *argv[])
         }
         // write guess to server
         tmpGuess = htonl(guess);
-        write(sockfd, &tmpGuess, sizeof(tmpGuess));
+        if (write(sockfd, &tmpGuess, sizeof(tmpGuess)) < 0)
+            error("failed to write guess to socket");
 
         // read result of guess from server
-        read(sockfd, &tmpDiff, sizeof(tmpDiff));
+        if (read(sockfd, &tmpDiff, sizeof(tmpDiff)) < 0)
+            error("failed to read guess result from socket");
         diff = ntohl(tmpDiff);
 
         // print result of guess
@@ -126,14 +130,15 @@ int main(int argc, char *argv[])
 
     // read victory message length from server
     int32_t messageLen;
-    read(sockfd, &messageLen, sizeof(messageLen));
+    if (read(sockfd, &messageLen, sizeof(messageLen)) < 0)
+        error("failed to read victory message length from socket");
     messageLen = ntohl(messageLen);
 
     // read victory message from server
     vector<char> message;
     message.reserve(messageLen + 1);
     if (read(sockfd, &message[0], messageLen) < 0)
-        error("unable to read message");
+        error("unable to read message from socket");
     string victoryMessage = "";
     victoryMessage.append(&message[0], messageLen);
 
